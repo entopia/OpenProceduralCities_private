@@ -1,0 +1,69 @@
+# Python virtual environments
+.env/
+.venv/
+venv/
+env/
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+
+# Jupyter Notebook checkpoints and metadata
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+*.nbconvert/
+*cache/
+
+# IDE/editor folders
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test output
+htmlcov/
+*.coverage
+*.cover
+coverage.xml
+*.py,cover
+
+# Jupyter runtime files
+*.nbconvert/
+.ipynb_checkpoints/
+
+# Data outputs (optional)
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.json
+*.geojson
+*.shp
+*.dbf
+*.prj
+*.shx
+
+# Model files (optional)
+*.h5
+*.hdf5
+*.pickle
+*.pkl
+*.joblib
+
+# Miscellaneous
+*.swp
+*.bak
+*.tmp
+
+# GIS cache or temp files
+*.aux.xml
+*.lock
+*.qgs~
+*.qgz~

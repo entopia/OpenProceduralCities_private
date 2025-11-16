@@ -1,0 +1,38 @@
+
+# To initiate a project type: uv init
+# To activate only the base dependencies (common to all groups) use `uv sync`.
+# To activate a group, use `uv sync --group groupname`.
+# To add a dependency xyz to a group (like you would do with "pip install xyz"), use `uv add xyz --group groupname`.
+
+[project]
+name = "openproceduralcitiescore"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "contextily>=1.6.2",
+    "ipywidgets>=8.1.7",
+    "jupyterlab-widgets>=3.0.15",
+    "loguru>=0.7.3",
+    "notebook>=7.4.3",
+    "python-nameof>=2.0.0",
+    "widgetsnbextension>=4.0.14",
+]
+
+
+[dependency-groups]
+dev = [
+  "numpy>=2.2.6",
+  "geopandas>=1.1.0",
+  "osmnx>=2.0.3",
+  "neatnet>=0.1.1",
+  "shapely>=2.1.1",
+  "matplotlib>=3.10.3",
+  "notebook>=7.4.3",
+]
+
+test = [
+  { include-group = "dev" },
+  "pytest>=8.3.5",
+]
