@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loughborough Blocks — 3D Extrusion MVP</title>
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+    .hud {
+      position: absolute; top: 12px; left: 12px; z-index: 10;
+      background: rgba(0,0,0,0.65); color: white; padding: 10px 12px;
+      font: 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      border-radius: 10px;
+      max-width: 520px;
+    }
+    .hud code { color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="hud">
+    <b>3D Blocks MVP</b><br/>
+    Drag = pan · Right-drag/Ctrl-drag = rotate · Scroll = zoom<br/>
+    Extrusion height is computed from <code>building_count</code> (fallback: area).<br/>
+    Color: white · Opacity: transparent
+  </div>
+
+  <script>
+    // Basemap (raster OSM) — fine for dev; use a proper provider for production
+    const rasterStyle = {
+      version: 8,
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: [
+            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          ],
+          tileSize: 256,
+          attribution: "© OpenStreetMap contributors"
+        }
+      },
+      layers: [{ id: "osm", type: "raster", source: "osm" }]
+    };
+
+    const map = new maplibregl.Map({
+      container: "map",
+      style: rasterStyle,
+      center: [-1.206, 52.771],
+      zoom: 13,
+      pitch: 0,
+      bearing: 0,
+      antialias: true
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+
+    //LOAD BLOCKS
+    async function loadGeoJSON() {
+      const resp = await fetch("./blocks.geojson");
+      if (!resp.ok) throw new Error(`Failed to load blocks.geojson (${resp.status})`);
+
+      const gj = await resp.json();
+
+      // Compute a per-feature height property `h` in meters.
+      // Priority:
+      //  1) use building_count if present
+      //  2) else use polygon area heuristic
+      (gj.features || []).forEach((f) => {
+        
+
+        f.properties = f.properties || {};
+        const raw = f.properties.building_count;
+        const bc = (raw === null || raw === undefined || raw === "") ? 0 : Number(raw);
+        //f.properties.bc = bc;   // keep a clean numeric for styling
+
+        const BASE = 3;
+        const SCALE = 1.2;
+        const MAX = 80;
+
+        const h = Math.min(MAX, BASE + Math.max(0, bc) * SCALE);
+        f.properties.h = h;
+        });
+
+
+      console.log("Example feature props:", gj.features?.[0]?.properties);
+
+      // Add source
+      map.addSource("blocks", { type: "geojson", data: gj });
+
+      // Outline (subtle)
+      map.addLayer({
+        id: "blocks-outline",
+        type: "line",
+        source: "blocks",
+        paint: {
+          "line-width": 0.6,
+          "line-opacity": 0.75
+        }
+      });
+
+      // Extrusion: white + transparent
+      map.addLayer({
+        id: "blocks-3d",
+        type: "fill-extrusion",
+        source: "blocks",
+        paint: {
+            "fill-extrusion-height": ["coalesce", ["get", "h"], 0],
+            "fill-extrusion-base": 0,
+            "fill-extrusion-vertical-gradient": false,
+
+            "fill-extrusion-color": [
+            "match",
+            ["to-string", ["coalesce", ["get", "typology"], ""]],
+            "perimeter",  '#4e79a7',
+            "fishbone",   "#59a14f",
+            "grid",       "#f28e2b",
+            "culdesac",   "#e15759",
+            "industrial", "#76b7b2",
+            /* default */ "#bdbdbd"
+                    ],
+
+            "fill-extrusion-opacity": 0.75
+        }
+      });
+    
+      // ---- Load OSM buildings (saved as buildings.geojson) ----
+        const bresp = await fetch("./buildings.geojson");
+        if (!bresp.ok) throw new Error(`Failed to load buildings.geojson (${bresp.status})`);
+        const bgj = await bresp.json();
+
+        // compute building height property `bh` in meters
+        (bgj.features || []).forEach((f) => {
+        f.properties = f.properties || {};
+        const rawH = f.properties.height;
+        const rawL = f.properties["building:levels"];
+
+        let bh = 6; // default
+        const h = (rawH === null || rawH === undefined || rawH === "") ? NaN : Number(rawH);
+        const lv = (rawL === null || rawL === undefined || rawL === "") ? NaN : Number(rawL);
+
+        if (Number.isFinite(h) && h > 0) bh = h;
+        else if (Number.isFinite(lv) && lv > 0) bh = lv * 3.0;
+
+        f.properties.bh = Math.min(120, Math.max(3, bh));
+        });
+
+        map.addSource("buildings", { type: "geojson", data: bgj });
+
+        
+
+
+        map.addLayer({
+        id: "buildings-outline",
+        type: "line",
+        source: "buildings",
+        paint: {
+            "line-width": 0.5,
+            "line-opacity": 0.35
+        }
+        }, "blocks-3d");
+
+        
+        // Add building layers UNDER blocks-3d so blocks stay on top
+        map.addLayer({
+        id: "buildings-3d",
+        type: "fill-extrusion",
+        source: "buildings",
+        paint: {
+            "fill-extrusion-height": ["coalesce", ["get", "bh"], 6],
+            "fill-extrusion-base": 0,
+            "fill-extrusion-color": "#9e9e9e",
+            "fill-extrusion-opacity": 1.0
+        }
+        }, "blocks-outline");
+
+
+
+
+        // Fit to bounds
+        const b = turf.bbox(gj);
+
+        // Fit top-down first
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {
+        padding: 60,
+        duration: 800,
+        pitch: 0,
+        bearing: 0
+        });
+
+        // Fly into 3D only after fit finishes (prevents the bounce)
+        map.once("moveend", () => {
+        map.easeTo({
+            pitch: 60,
+            bearing: 25,
+            zoom: Math.max(map.getZoom(), 14),
+            duration: 1400
+        });
+    });
+
+
+
+      // Click popup
+      map.on("click", "blocks-3d", (e) => {
+        const feat = e.features?.[0];
+        if (!feat) return;
+        const props = feat.properties || {};
+        const typ = props.typology ?? props.block_type ?? props.type ?? "—";
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<b>Block</b><br/>` +
+            `typology: ${typ}<br/>` +
+            `h: ${Number(props.h).toFixed(1)} m<br/>` +
+            (props.building_count !== undefined ? `building_count: ${props.building_count}<br/>` : ``)
+          )
+          .addTo(map);
+      });
+
+      map.on("mouseenter", "blocks-3d", () => map.getCanvas().style.cursor = "pointer");
+      map.on("mouseleave", "blocks-3d", () => map.getCanvas().style.cursor = "");
+    }
+
+    map.on("load", () => loadGeoJSON().catch(err => { console.error(err); alert(err.message); }));
+  </script>
+</body>
+</html>
