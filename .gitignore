@@ -4,6 +4,10 @@
 venv/
 env/
 
+# Data files and outputs
+block_aerial_images/
+*.png
+
 # Python bytecode and cache
 __pycache__/
 *.py[cod]
@@ -67,3 +71,4 @@ coverage.xml
 *.lock
 *.qgs~
 *.qgz~
+
